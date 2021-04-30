@@ -1,0 +1,1 @@
+SUBSYSTEM=="usb", ATTRS{idVendor}=="09a1", ATTRS{idProduct}=="001d", GROUP="video"
