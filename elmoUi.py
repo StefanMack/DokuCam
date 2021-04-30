@@ -12,7 +12,7 @@ adaptiert sowie restrukturiert.
 Unter Linux udev-Rules Datei in /etc/udev/rules.d/  nötig für Berechtigung 
 auf die Gruppe video für Zugriff auf Elmo ohne Root Rechte.
 
-S. Mack, 29.4.21
+S. Mack, 30.4.21
 
 """
 
@@ -48,14 +48,13 @@ DGRAY = (48, 48, 48)
 ###############
 # global vars #
 ###############
-version = "0.1"
+version = "0.4"
 disp_info = pygame.display.Info()
 rotate = False
 rotate_90 = 0
 rotate_90_changed = False
 display_help = False
-display_interface = True
-image_res = None
+display_menue = True
 image_size = None
 image = None
 screen_res = None
@@ -77,8 +76,7 @@ def draw_help(screen, screen_size, version, font, color_background, color_font):
                 Quit: Ctrl+Q, Alt+F4, Escape\n
                 Display Help: Ctrl+H, F1  
                 Exit Help: Ctrl+H, F1, Escape\n
-                Show/Hide Interface: Crtl+I\n
-                Toggle Fullscreen: Ctrl+F
+                Show/Hide Menue: Crtl+M\n
                 Rotate Image 180 Degree: Ctrl+T"""
                    #Rotate Image 90 Degree: Ctrl+R\n
     my_string += """\n
@@ -119,8 +117,8 @@ def draw_help(screen, screen_size, version, font, color_background, color_font):
         screen.blit(rendered_text, textRect)
     return screen
         
-#draw a interface with buttons on the screen        
-def draw_interface(screen, screen_size, buttons, error_no_elmo, font, color_background, color_font, bold=False):
+#draw a menue with buttons on the screen        
+def draw_menue(screen, screen_size, buttons, error_no_elmo, font, color_background, color_font, bold=False):
     '''the screen will be split in a relative size for the adjustable buttons size it will be the same a in help a minimum
     resolution of 200x200 pixels is standard calculate relative size of tides for the screen'''
     screen_height = screen_size[1]
@@ -138,8 +136,8 @@ def draw_interface(screen, screen_size, buttons, error_no_elmo, font, color_back
     buttons["help"] = Button()
     buttons["help"].create_button(screen, color_background, screen_size[0]-button_width, counter*button_height, button_width, button_height, 0, "Help", color_font, font, font_size, bold)
     counter += 2
-    buttons["interface"] = Button()
-    buttons["interface"].create_button(screen, color_background, screen_size[0]-button_width, counter*button_height, button_width, button_height, 0, "Interface Off", color_font, font, font_size, bold)
+    buttons["menue"] = Button()
+    buttons["menue"].create_button(screen, color_background, screen_size[0]-button_width, counter*button_height, button_width, button_height, 0, "Menue Off", color_font, font, font_size, bold)
     counter += 2
     counter = 0
     buttons["rotate"] = Button()
@@ -208,7 +206,6 @@ def resize_image(image, screen):
     #calculate actual sizes 
     im_format = get_image_format(image)
     screen_size = screen.get_size()
-    #image_size = image.get_size()
     #calculate the new image size
     if screen_size[0]/im_format[0] > screen_size[1]/im_format[1]:
         height = screen_size[1]
@@ -228,18 +225,6 @@ def get_image_padding(image, screen):
     x = (screen_size[0]-image_size[0])/2
     y = (screen_size[1]-image_size[1])/2
     return [x, y]
-
-#save screen from actual pygame screen
-def save_screen(screen):
-    is_windows = sys.platform.startswith('win')
-    if is_windows:
-        dir_sep = "\\"
-    else:
-        dir_sep = "/"
-    directory = "ELMO-Screenshots"
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    pygame.image.save(screen, "ELMO-Screenshots" + dir_sep + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".png")
 
 def save_cam(cam):
     if cam.test: return
@@ -296,8 +281,7 @@ def render_textrect(string, font, rect, text_color, background_color, justificat
             # if any of our words are too long to fit, return.
             for word in words:
                 if font.size(word)[0] >= rect.width:
-                    #raise TextRectException, "The word " + word + " is too long to fit in the rect passed."
-                    print("The word " + word + " is too long to fit in the rect passed.")
+                    raise ValueError('render_textrect: The word " + word + " is too long to fit in the rect passed.')
             # Start a new line
             accumulated_line = ""
             for word in words:
@@ -319,8 +303,7 @@ def render_textrect(string, font, rect, text_color, background_color, justificat
     accumulated_height = 0
     for line in final_lines:
         if accumulated_height + font.size(line)[1] >= rect.height:
-            #raise TextRectException, "Once word-wrapped, the text string was too tall to fit in the rect."
-            print("Once word-wrapped, the text string was too tall to fit in the rect.")
+            raise ValueError('render_textrect: Once word-wrapped, the text string was too tall to fit in the rect.')
         if line != "":
             tempsurface = font.render(line, 1, text_color)
             if justification == 0:
@@ -330,8 +313,7 @@ def render_textrect(string, font, rect, text_color, background_color, justificat
             elif justification == 2:
                 surface.blit(tempsurface, (rect.width - tempsurface.get_width(), accumulated_height))
             else:
-                #raise TextRectException, "Invalid justification argument: " + str(justification)
-                print("Invalid justification argument: ")
+                raise ValueError('render_textrect: Invalid justification argument.')
         accumulated_height += font.size(line)[1]
     return surface
 
@@ -340,60 +322,37 @@ def render_textrect(string, font, rect, text_color, background_color, justificat
 # events #
 ##########
 def events():
-    #get global vars
-    #vars are global because input and output changed too often => should be changed to input args and returns
     global elmo
     global cam
     global error_no_elmo
     global screen
     global image
     global rotate
-    global rotate_90
     global display_help
-    global display_interface
+    global display_menue
     global image_size
     global buttons
     global ui_running
-    #button-pressed event-handling
-    for event in pygame.event.get():
-        #window resize event
-        if event.type == pygame.VIDEORESIZE and error_no_elmo == False:
-            size = event.size
-            temp_width = size[0]
-            temp_height = size[1]
-            logging.debug('window size: {}x{}'.format(screen.get_size()[0], screen.get_size()[1]))     
-            if temp_width < 480: temp_width = 480
-            if temp_height < 320: temp_height = 320
-            screen = pygame.display.set_mode((temp_width, temp_height),RESIZABLE)
-            try:
-                if image != None:
-                    image_size = resize_image(image, screen)
-            except NameError:
-                pass                
-        #close program
-        if event.type == pygame.QUIT:
+    
+    for event in pygame.event.get():        
+        if event.type == pygame.QUIT: # close program event
             ui_running = False
-        #keydown-events
-        if event.type == pygame.KEYDOWN:
+        
+        if event.type == pygame.KEYDOWN: # keydown events
             #close program
             if (event.key == pygame.K_q and pygame.K_LCTRL) or (event.key == pygame.K_q and pygame.K_RCTRL) or (event.key == pygame.K_F4 and pygame.K_LALT) or (event.key == pygame.K_F4 and pygame.K_RALT) or (event.key == pygame.K_ESCAPE and display_help == False):
                 ui_running = False    
             #rotate display
             if (event.key == pygame.K_t and pygame.K_LCTRL) or (event.key == pygame.K_t and pygame.K_RCTRL):
                 rotate = not rotate
-            if (event.key == pygame.K_r and pygame.K_LCTRL) or (event.key == pygame.K_r and pygame.K_RCTRL):                    
-                rotate_90 = rotate_90 + 1
-                if rotate_90 == 4:
-                    rotate_90 = 0
             #display help
             if (event.key == pygame.K_h and pygame.K_LCTRL) or (event.key == pygame.K_h and pygame.K_RCTRL) or event.key == pygame.K_F1:
                 display_help = not display_help
-            #display interface
-            if (event.key == pygame.K_i and pygame.K_LCTRL) or (event.key == pygame.K_i and pygame.K_RCTRL):
-                display_interface = not display_interface
+            #display menue
+            if (event.key == pygame.K_m and pygame.K_LCTRL) or (event.key == pygame.K_m and pygame.K_RCTRL):
+                display_menue = not display_menue
             #make screenshot
             if (event.key == pygame.K_s and pygame.K_LCTRL) or (event.key == pygame.K_s and pygame.K_RCTRL):
-                #save_screen(image)
                 save_cam(cam)
             #exit help with escape
             if event.key == pygame.K_ESCAPE and display_help == True:
@@ -430,18 +389,17 @@ def events():
                 #quality down
                 if (event.key == pygame.K_z and pygame.K_LCTRL) or (event.key == pygame.K_z and pygame.K_RCTRL):
                     cam.setCompression(-5, False)
-        #Button handling
-        elif event.type == MOUSEBUTTONDOWN:
+        
+        elif event.type == MOUSEBUTTONDOWN: #Button event
             if buttons['exit'].pressed(pygame.mouse.get_pos()):
                 ui_running = False
             if buttons['help'].pressed(pygame.mouse.get_pos()):
                 display_help = not display_help
-            if buttons['interface'].pressed(pygame.mouse.get_pos()):
-                display_interface = not display_interface
+            if buttons['menue'].pressed(pygame.mouse.get_pos()):
+                display_menue = not display_menue
             if buttons['rotate'].pressed(pygame.mouse.get_pos()):
                 rotate = not rotate
             if buttons['save'].pressed(pygame.mouse.get_pos()):
-                #save_screen(image)
                 save_cam(cam)
             #ELMO-Functions like zoom, brightness, focus
             if error_no_elmo == False:
@@ -526,16 +484,16 @@ while ui_running:
     if error_no_elmo == True:
         try:    
             logging.debug('# of displays: {}'.format(pygame.display.get_num_displays()))
-            logging.debug('monitor size:{}x{}'.format(disp_info.current_w,disp_info.current_h))
+            logging.debug('display size:{}x{}'.format(disp_info.current_w,disp_info.current_h))
             cam = elmoCam.Elmo()
             #cam_connect = cam.connect()
             #error_no_elmo = True if cam_connect == -1 else False
             error_no_elmo = False # Testbetrieb
         except:
-            print('Keine Elmo gefunden...')
+            logging.warning('No Elmo camera found...')
             error_no_elmo = True
               
-    events() # check for pygame events
+    events() # check for pygame events (evtl. wegen pyGame 2 noch ändern)
         
     try: #clear background
         background = pygame.Surface(screen.get_size())
@@ -544,60 +502,43 @@ while ui_running:
         screen.blit(background, (0, 0))
     except:
         pass
+    
     try: # get the image           
         data = cam.get_image() # Bilddaten als Byte Array einlesen
         error_no_elmo = False
         stream = BytesIO(data) #Byte-Stream aus data - wie eine Datei einlesbar
         error_no_image = False
-        image_new = pygame.image.load(stream) # draw image on screen                                 
-        
-        #rotate image x-90 degree
-        #long calculation phases for the pictures, deactivated at the moment
-        #image_new = image_new.rotate(90*(rotate_90%4))  
-        
-    except:
-        #ELMO-Device wont deliver a image
-        print('ELMO gibt kein Bild')
+        image_new = pygame.image.load(stream) # draw image on screen                                      
+    except:# ELMO-Device wont deliver a image
+        logging.warning('No image data from Elmo camera...')
         error_no_image = True
   
     #if new image update the image, else the old image will be displayed.
     if error_no_image == False:
         image = image_new
 
-    if image != None:        
-        #save of the image resolution
-        image_res = image.get_size()
-
-        #init display on startup if not set
-        if screen is None:
+    if image != None:            
+        if screen is None: # init display on startup if not set
             start_size = reduce_to_screen_size(image, disp_info)
             screen = pygame.display.set_mode(start_size,RESIZABLE, display=0) # Screen auf Monitor 1 (display=0)
             pygame.display.set_caption(str("Elmo UI v" + version)) #set msg of the window
-            screen_res = screen.get_size()
             image_size = image.get_size()
             
-        #rotate screen if demanded
-        if rotate:
+        if rotate: # Bild 180° rotieren
             image = pygame.transform.flip(image, True, True)
         
-        #resize image to fit the screen
-        image_size = resize_image(image, screen) #not sure if it must before the if
-        #resize the image
-        image = pygame.transform.smoothscale(image, image_size)
-        screen_res = screen.get_size()
-
-        #draw image on screen
-        screen.blit(image, get_image_padding(image,screen))
+        # Bei Änderung Fenstergröße Bild entsprechend skalieren
+        image_size = resize_image(image, screen) # Bildgröße berechnen
+        image = pygame.transform.smoothscale(image, image_size) # Bild skalieren
+        screen.blit(image, get_image_padding(image,screen)) # draw image on screen
         
-        #display help when ctrl+h, for close ctrl+h or esc must be pressed
-        #must be after screen.blit(image...
-        if display_help:
+        if display_help: # help-Fenster anzeigen
             screen = draw_help(screen, screen.get_size(), version, basic_font, DGRAY, LGRAY) 
-        #display button-interface and return the buttons for event handling
-        if display_interface:
-            buttons = draw_interface(screen, screen.get_size(), buttons, error_no_elmo, basic_font, DGRAY, LGRAY)
-        #display error massage when no image is delivered
-        if error_no_image:
+        
+        if display_menue: # Menü anzeigen
+            buttons = draw_menue(screen, screen.get_size(), buttons, error_no_elmo, basic_font, DGRAY, LGRAY)
+        
+        if error_no_image: # display error massage when no image is delivered
             string = "\n  Can't get a new image.  "
             #calculating the box size
             temp_font_size = int((screen.get_size()[0]/12)/2)
@@ -622,7 +563,7 @@ while ui_running:
         if screen_res == None:
             screen_res = [480, 320]
         screen = pygame.display.set_mode(screen_res,RESIZABLE)
-        pygame.display.set_caption(str("ERROR!!! - Free ELMO Version " + version)) #set msg of the window
+        pygame.display.set_caption(str("ERROR!!! - elmoUi Version " + version)) #set msg of the window
         #define string to display
         error_string = ""
         if error_no_elmo:
