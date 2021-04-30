@@ -1,4 +1,9 @@
 # DokuCam
+Die Digitalisierung in den Schulen und Hochschulen während der Corona-Pandemie hat die Vormachtstellung von Digitalkonzernen wie Microsoft und Google weiter zementiert.  
+Aus Steuermitteln wurde allzu oft Hardware gekauft, die nicht mit freien Betriebssystemen wie Linux kompatibel ist. Ein gutes Beispiel hierfür sind die Dokumentenkameras L-12 des Herstellers Elmo. 
+  
+Doch zum Glück gibt es findige Programmierer, welche dsa "Reverse Engineering" beherrschen. Und zum Glück hat Elmo das USB-Prokoll zu seiner Dokumentenkamera recht einfach gehalten. Vor vielen Jahren hat Jan Hoersch das Python-Programm [freeElmo](https://nv1t.github.io/blog/freeing-elmo) geschieben, um die Kamera auch mit Linux-Betriebssystem zu betreiben. 
+Leider basierte dieser Code noch auf Python 2. Daher wurde für dieses Repository freeElmo auf Python 3 aktualisiert. Der Code ist weitgehend identisch zum ursprünglichen Code von Jan Hoersch und verwendet weiterhin PyGame als Grafikbibliothek.
 
 
 License
