@@ -5,7 +5,7 @@ Frage: Freigabe der USB-Schnittstelle am Ende bei disconnect() nötig?
 Modul elmo basiert auf "freeElmo", siehe nv1t.github.io/blog/freeing-elmo
 bzw. github.com/nv1t/freeElmo/blob/master/elmo.py
 
-S. Mack, 29.4.21
+S. Mack, 3.5.21
 """
 
 
@@ -13,6 +13,8 @@ import usb.core
 import usb.util
 from io import BytesIO # für Testbild
 from PIL import Image # für Testbild
+import logging
+#import time
 
 
 class Elmo:
@@ -39,7 +41,8 @@ class Elmo:
         self.focusing = False
         self.compression = 60
         #### ACHTUNG hier False wenn Elmo-Kamera in Betrieb sons zu Testzwecken True ####
-        self.test = True # # Betrieb ohne Elmo und Testbild statt Livebild
+        #self.test = False # Livebild via USB
+        self.test = True # Betrieb ohne Elmo und Testbild statt Livebild
 
     def connect(self, vendor=0x09a1, product=0x001d):
         if self.test: return
@@ -67,7 +70,7 @@ class Elmo:
     def getCompression(self):
         return self.compression
 
-    def zoom(self, i):
+    def zoom(self, i): # Button Press wechselt zwischen -1/+1 und 0
         if self.test: return
         if self.zooming:
             self.device.write(0x02, self.msg['zoom_stop'], 0)
@@ -134,14 +137,17 @@ class Elmo:
         ret = self.device.read(0x81, 32)
         return ret
 
-    def cleardevice(self):
+    def clear_device(self): # alle Bytes auslesen bis Timeout
+        logging.debug('elmoCam: clear_device()...')
         if self.test: return
         '''Clear the devices memory on endpoint 0x83'''
         while True:
             try:
-                self.device.read(0x83,  512)
-            except usb.core.USBError as e:
-                if e.args[0] == 'Operation timed out':
+                self.device.read(0x83, 512, 10) # wieso 512 und (ursprünglich) Default Timeout?
+            except usb.core.USBError as e: # USBError gibt Error Number und String (Fehlerbeschreibung) zurück
+                logging.warning('elmoCam: clear_device() USBError: {}:'.format(e.args))
+                if (e.args[0] == 110): # 110 ist pyusb Timeout exception
+                    logging.debug('elmoCam: clear_device() > timeout...')
                     break
 
     def get_test_image(self):
@@ -152,6 +158,7 @@ class Elmo:
         return(byte_im)
     
     def get_image(self):
+        logging.debug('elmoCam: get_image()...')
         if self.test: 
             im = Image.open('testbild.jpg')
             buf = BytesIO()
@@ -161,21 +168,28 @@ class Elmo:
         try:
             a = self.msg['picture']
             a[12] = self.compression # jpeg compression ratio
-            self.device.write(0x04,  self.msg['picture'], 0)
-            self.device.read(0x83, 32) # vermutlich dummy read
+            self.device.write(0x04,  self.msg['picture'], 0) # Anforderung Bild, wieso Timeout 0?
         except:
-            self.cleardevice()
+            logging.warning('elmoCam: get_image() > device.write() exeption...')
+        try:
+            ret = self.device.read(0x83, 32) # Antwort auf Anforderung Bild mit # Bilddaten-Bytes in Byte 4 und 5
+            logging.debug('elmoCam: get_image() poll total {} Bytes to read.'.format(256*ret[5]+ret[4]))
+        except:
+            logging.warning('elmoCam: get_image() poll > device.read() exception...')
+            self.clear_device()
             return False
-        # Every package has a defined length in byte 4/5 of the first 8 Bytes which is used to read the whole package
-        answer = []
-        # 0xfef8 is the maximum size of a package. if it is smaller => the last package and exit
-        size = 0xfef8
-        while size == 0xfef8:
+        whole_img_bytes = [] # Liste für Bytes des gesammten Bildes
+        # 0xfef8 (65272) is the maximum size of a package. if it is smaller => the last package and exit
+        size = 0xfef8 # Portionen von 0xfef8 (65272) Bytes (ab 8. Byte) mit Bilddaten
+        while size == 0xfef8: # falls Portion kleiner, dann Rest = letzte Portion
             try:
-                ret = self.device.read(0x83, 512)
-                size = 256*ret[5]+ret[4] # Byte-Anzahl aus Byte 4 und 5
-                answer += ret[8:]+self.device.read(0x83, size) # Bildinfo ab dem 8. Byte
-            except:
-                self.cleardevice()
+                ret = self.device.read(0x83, 512) # Bilddaten ab dem 8. Byte hier enthalten
+                size = 256*ret[5]+ret[4] # Byte-Anzahl Bilddaten in Byte 4 und 5 codiert
+                logging.warning('size: {} (should be 65272)'.format(size))
+                img_data = self.device.read(0x83, (size-504)) # restliche der 65272 Bytes lesen
+                whole_img_bytes += ret[8:]+ img_data # gelesene Bytes an Liste anfügen 
+            except: # es konnten keine 65272 Bytes gelesen werden > vermulich letzte Portion Bilddaten
+                logging.warning('elmoCam: get_image() > exception reading image. Last data size: {}'.format(size))
+                self.clear_device() # falls noch Daten am USB Port anliegen, diese auslesen und wegwerfen.
                 return False
-        return bytearray(answer) # Bilddaten (8-Bit Integer List) in Byte Array umwandeln       
+        return bytearray(whole_img_bytes) # Bilddaten (8-Bit Integer List) in Byte Array umwandeln       
