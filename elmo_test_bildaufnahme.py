@@ -7,7 +7,7 @@ Frage: Freigabe der USB-Schnittstelle am Ende nötig?
 Modul elmo basiert auf "freeElmo", siehe nv1t.github.io/blog/freeing-elmo
 bzw. github.com/nv1t/freeElmo/blob/master/elmo.py
 
-S. Mack, 29.4.21
+S. Mack, 4.5.21
 
 """
 
@@ -16,7 +16,7 @@ from io import BytesIO
 from PIL import Image
 import time
 
-cam = elmo.Elmo()
+cam = elmoCam.Elmo()
 cam_connect = cam.connect()
 cam.autofocus()
 time.sleep(1)
