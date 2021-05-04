@@ -6,6 +6,7 @@ Doch zum Glück gibt es findige Programmierer, welche das "Reverse Engineering" 
 
 Leider basierte dieser Code noch auf Python 2. Daher wurde für dieses Repository ``freeElmo`` auf Python 3 aktualisiert. Der Code ist trotz seines neuen Namens  ``elmoUi``  weitgehend identisch zum ursprünglichen Code von Jan Hoersch und verwendet weiterhin PyGame als Grafikbibliothek.
 
+![Screenshot elmoUi](/elmoUi_Screenshot.png)
 
 License
 -----
