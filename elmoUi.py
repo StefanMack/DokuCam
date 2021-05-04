@@ -12,12 +12,17 @@ adaptiert sowie restrukturiert.
 Unter Linux udev-Rules Datei in /etc/udev/rules.d/  nötig für Berechtigung 
 auf die Gruppe video für Zugriff auf Elmo ohne Root Rechte.
 
-S. Mack, 1.5.21
+Erste funktionierende Version v1.0
+Getestet nur unter Ubuntu Linux 20.04 LTS.
+Unter Windoof muss mindestens die Pfadangabe in der Funktion save_to_file() 
+geänder werden.´
+
+S. Mack, 4.5.21
 
 """
 
 import logging
-import pygame, sys, datetime, time, os
+import pygame, datetime, os #, time
 from pygame.locals import RESIZABLE, MOUSEBUTTONDOWN
 from PIL import Image
 from io import BytesIO
@@ -137,7 +142,7 @@ def draw_menue(screen, screen_size, buttons, error_no_elmo, font, color_backgrou
     buttons["help"].create_button(screen, color_background, screen_size[0]-button_width, counter*button_height, button_width, button_height, 0, "Help", color_font, font, font_size, bold)
     counter += 2
     buttons["menue"] = Button()
-    buttons["menue"].create_button(screen, color_background, screen_size[0]-button_width, counter*button_height, button_width, button_height, 0, "Menue Off", color_font, font, font_size, bold)
+    buttons["menue"].create_button(screen, color_background, screen_size[0]-button_width, counter*button_height, button_width, button_height, 0, "Menue Off Strg+M", color_font, font, font_size, bold)
     counter += 2
     counter = 0
     buttons["rotate"] = Button()
@@ -165,12 +170,6 @@ def draw_menue(screen, screen_size, buttons, error_no_elmo, font, color_backgrou
         counter += 2
         buttons["focus_auto"] = Button()
         buttons["focus_auto"].create_button(screen, color_background, 0, counter*button_height, button_width, button_height, 0, "Autofocus", color_font, font, font_size, bold)
-        counter += 2
-        buttons["focus_macro"] = Button()
-        buttons["focus_macro"].create_button(screen, color_background, 0, counter*button_height, button_width, button_height, 0, "Macrofocus on/off", color_font, font, font_size, bold)
-        counter += 2
-        buttons["focus_wide"] = Button()
-        buttons["focus_wide"].create_button(screen, color_background, 0, counter*button_height, button_width, button_height, 0, "Widefocus on/off", color_font, font, font_size, bold)
         counter += 2
         buttons["quality_up"] = Button()
         buttons["quality_up"].create_button(screen, color_background, 0, counter*button_height, button_width, button_height, 0, "Image Quality Up", color_font, font, font_size, bold)
@@ -226,27 +225,19 @@ def get_image_padding(image, screen):
     y = (screen_size[1]-image_size[1])/2
     return [x, y]
 
-def save_cam(cam):
+def save_image_to_file(cam): # für Windows bei Pfadangabe auf Backslash ändern
     if cam.test: return
     if cam.connect() != -1:
-        is_windows = sys.platform.startswith('win')
-        if is_windows:
-            dir_sep = "\\"
-        else:
-            dir_sep = "/"
-        directory = "ELMO-Screenshots"
+        directory = "ElmoScreenShots" # Verzeichnis Screenshots im Arbeitsverzeichnis
         if not os.path.exists(directory):
-            os.makedirs(directory)  
-        #get the image     
-        data = cam.get_image()
+            os.makedirs(directory) 
         compression = cam.getCompression()
-        cam.setCompression(100)
-        #make image to a pygame compatible
+        cam.setCompression(80) # jpg-Qualität erhöhen falls <80
+        data = cam.get_image()
         stream = BytesIO(data)                                    
         pic = Image.open(stream)
-        image = pygame.image.load(pic)
-        pygame.image.save(image, "ELMO-Screenshots" + dir_sep + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + ".png")
-        cam.setCompression(compression)
+        pic.save('ElmoScreenShots/elmo_image'+datetime.datetime.now().strftime("%Y%m%d_%H%M%S")+'.jpg')
+        cam.setCompression(compression) # ursprüngliche jpg-Qualität einstellen
 
 #reduce source to display resolution
 def reduce_to_screen_size(image, disp_info):
@@ -352,7 +343,7 @@ def events():
             #display menue
             if (event.key == pygame.K_m and pygame.K_LCTRL) or (event.key == pygame.K_m and pygame.K_RCTRL):
                 display_menue = not display_menue
-            #make screenshot
+            #Aktuelles Bild als jpg-Datei speichern
             if (event.key == pygame.K_s and pygame.K_LCTRL) or (event.key == pygame.K_s and pygame.K_RCTRL):
                 save_cam(cam)
             #exit help with escape
@@ -377,13 +368,7 @@ def events():
                     cam.brightness(0)
                 #autofocus
                 if (event.key == pygame.K_a and pygame.K_LCTRL) or (event.key == pygame.K_a and pygame.K_RCTRL):
-                    cam.focus(0)
-                #macro focus
-                if (event.key == pygame.K_e and pygame.K_LCTRL) or (event.key == pygame.K_e and pygame.K_RCTRL):
-                    cam.focus(-1)
-                #wide focus
-                if (event.key == pygame.K_w and pygame.K_LCTRL) or (event.key == pygame.K_w and pygame.K_RCTRL):
-                    cam.focus(1)
+                    cam.autofocus()
                 #quality up
                 if (event.key == pygame.K_u and pygame.K_LCTRL) or (event.key == pygame.K_u and pygame.K_RCTRL):
                     cam.setCompression(5, False)
@@ -402,7 +387,7 @@ def events():
             if buttons['rotate'].pressed(pygame.mouse.get_pos()):
                 rotate = not rotate
             if buttons['save'].pressed(pygame.mouse.get_pos()):
-                save_cam(cam)
+                save_image_to_file(cam)
             #ELMO-Functions like zoom, brightness, focus
             if error_no_elmo == False:
                 if buttons['zoom_in'].pressed(pygame.mouse.get_pos()):
@@ -416,11 +401,7 @@ def events():
                 if buttons['brightness_down'].pressed(pygame.mouse.get_pos()):
                     cam.brightness(-1)
                 if buttons['focus_auto'].pressed(pygame.mouse.get_pos()):
-                    cam.focus(0)
-                if buttons['focus_macro'].pressed(pygame.mouse.get_pos()):
-                    cam.focus(-1)
-                if buttons['focus_wide'].pressed(pygame.mouse.get_pos()):
-                    cam.focus(1)
+                    cam.autofocus()
                 if buttons['quality_up'].pressed(pygame.mouse.get_pos()):
                     cam.setCompression(5, False)
                 if buttons['quality_down'].pressed(pygame.mouse.get_pos()):
@@ -489,12 +470,12 @@ while ui_running:
             logging.debug('# of displays: {}'.format(pygame.display.get_num_displays()))
             logging.debug('display size:{}x{}'.format(disp_info.current_w,disp_info.current_h))
             cam = elmoCam.Elmo()
-            #cam_connect = cam.connect() # bei Testbetrieb auskommentieren
+            cam_connect = cam.connect() # bei Testbetrieb auskommentieren
             if cam_connect == -1:
                 error_no_elmo = True
             else:
                 error_no_elmo = False
-            error_no_elmo = False # Testbetrieb
+            #error_no_elmo = False # Testbetrieb
         except:
             logging.warning('No Elmo camera found...')
             error_no_elmo = True

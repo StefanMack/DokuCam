@@ -5,7 +5,7 @@ Frage: Freigabe der USB-Schnittstelle am Ende bei disconnect() nötig?
 Modul elmo basiert auf "freeElmo", siehe nv1t.github.io/blog/freeing-elmo
 bzw. github.com/nv1t/freeElmo/blob/master/elmo.py
 
-S. Mack, 3.5.21
+S. Mack, 4.5.21
 """
 
 
@@ -32,17 +32,17 @@ class Elmo:
             'brightness_dark':  [0, 0, 0, 0, 0x18, 0, 0, 0, 0xE2, 0, 0, 0, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             'brightness_light': [0, 0, 0, 0, 0x18, 0, 0, 0, 0xE2, 0, 0, 0, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             'brightness_auto':  [0, 0, 0, 0, 0x18, 0, 0, 0, 0xE2, 0, 0, 0, 0x05, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            'focus_wide':       [0, 0, 0, 0, 0x18, 0, 0, 0, 0xEA, 0, 0, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            'focus_near':       [0, 0, 0, 0, 0x18, 0, 0, 0, 0xEA, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            'focus_stop':       [0, 0, 0, 0, 0x18, 0, 0, 0, 0xEA, 0, 0, 0, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+#            'focus_wide':       [0, 0, 0, 0, 0x18, 0, 0, 0, 0xEA, 0, 0, 0, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+#            'focus_near':       [0, 0, 0, 0, 0x18, 0, 0, 0, 0xEA, 0, 0, 0, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+#            'focus_stop':       [0, 0, 0, 0, 0x18, 0, 0, 0, 0xEA, 0, 0, 0, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         }
         self.zooming = False
         self.brightnessing = False
         self.focusing = False
         self.compression = 60
         #### ACHTUNG hier False wenn Elmo-Kamera in Betrieb sons zu Testzwecken True ####
-        #self.test = False # Livebild via USB
-        self.test = True # Betrieb ohne Elmo und Testbild statt Livebild
+        self.test = False # Livebild via USB
+        #self.test = True # Betrieb ohne Elmo und Testbild statt Livebild
 
     def connect(self, vendor=0x09a1, product=0x001d):
         if self.test: return
@@ -50,7 +50,7 @@ class Elmo:
 
         if self.device is None:
             return -1
-            print('Keine Elmo L-12 Kamera gefunden.')
+            logging.warning('Keine Elmo L-12 Kamera gefunden.')
         else:
             if self.device.is_kernel_driver_active(0):
                 self.device.detach_kernel_driver(0)
@@ -61,11 +61,13 @@ class Elmo:
         return self
 
     def setCompression(self, compression, absolute=True):
+        logging.debug('elmoCam: setCompression() +/-Val: {}'.format(compression))
         if absolute:
             self.compression = compression
         else:
             self.compression = self.compression+compression
         self.compression = max(10, min(100, self.compression))
+        logging.debug('elmoCam: compression set to {}'.format(self.compression))
 
     def getCompression(self):
         return self.compression
@@ -83,24 +85,6 @@ class Elmo:
         elif i < 0:
             self.device.write(0x02, self.msg['zoom_out'], 0)
         self.zooming = True
-        self.device.read(0x81, 32)
-
-    def focus(self, i):
-        if self.test: return
-        if self.focusing:
-            self.device.write(0x02, self.msg['focus_stop'], 0)
-            self.device.read(0x81, 32)
-            self.focusing = False
-            return
-
-        if i > 0:
-            self.device.write(0x02, self.msg['focus_wide'], 0)
-        elif i < 0:
-            self.device.write(0x81, self.msg['focus_near'], 0)
-        else:
-            self.autofocus()
-            return
-        self.focusing = True
         self.device.read(0x81, 32)
 
     def brightness(self, i):
@@ -145,7 +129,7 @@ class Elmo:
             try:
                 self.device.read(0x83, 512, 10) # wieso 512 und (ursprünglich) Default Timeout?
             except usb.core.USBError as e: # USBError gibt Error Number und String (Fehlerbeschreibung) zurück
-                logging.warning('elmoCam: clear_device() USBError: {}:'.format(e.args))
+                logging.warning('elmoCam: clear_device() USBError No. {}: {}'.format(e[0],e[1]))
                 if (e.args[0] == 110): # 110 ist pyusb Timeout exception
                     logging.debug('elmoCam: clear_device() > timeout...')
                     break
@@ -175,7 +159,7 @@ class Elmo:
             ret = self.device.read(0x83, 32) # Antwort auf Anforderung Bild mit # Bilddaten-Bytes in Byte 4 und 5
             logging.debug('elmoCam: get_image() poll total {} Bytes to read.'.format(256*ret[5]+ret[4]))
         except:
-            logging.warning('elmoCam: get_image() poll > device.read() exception...')
+            logging.debug('elmoCam: get_image() poll > device.read() exception...')
             self.clear_device()
             return False
         whole_img_bytes = [] # Liste für Bytes des gesammten Bildes
@@ -185,7 +169,7 @@ class Elmo:
             try:
                 ret = self.device.read(0x83, 512) # Bilddaten ab dem 8. Byte hier enthalten
                 size = 256*ret[5]+ret[4] # Byte-Anzahl Bilddaten in Byte 4 und 5 codiert
-                logging.warning('size: {} (should be 65272)'.format(size))
+                logging.debug('size: {} (should be 65272)'.format(size))
                 img_data = self.device.read(0x83, (size-504)) # restliche der 65272 Bytes lesen
                 whole_img_bytes += ret[8:]+ img_data # gelesene Bytes an Liste anfügen 
             except: # es konnten keine 65272 Bytes gelesen werden > vermulich letzte Portion Bilddaten
