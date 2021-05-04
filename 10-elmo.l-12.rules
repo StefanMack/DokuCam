@@ -1,1 +1,1 @@
-SUBSYSTEM=="usb", ATTRS{idVendor}=="09a1", ATTRS{idProduct}=="001d", GROUP="video"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="09a1", ATTRS{idProduct}=="001d", GROUP="plugdev"

@@ -30,7 +30,7 @@ import elmoCam
 
 # Nachfolgende Zeile für Debugmeldungen ausschalten (level=0 bedeutet alle Meldungen)
 # DEBUG 10, INFO 20, WARNING 30
-logging.basicConfig(level=logging.WARNING)
+#logging.basicConfig(level=logging.WARNING)
 #logging.basicConfig(filename='logDatei.log', level=logging.WARNING)
 
 pygame.init() #init pygame
@@ -92,9 +92,7 @@ def draw_help(screen, screen_size, version, font, color_background, color_font):
                 Reset Brightness: Ctrl+G 
                 Brightness up start/stop: Ctrl+D
                 Brightness down start/stop: Ctrl+X\n
-                Autofocus: Ctrl+A
-                Macrofocus start/stop: Ctrl+E
-                Widefocus start/stop: Ctrl+W\n
+                Autofocus: Ctrl+A\n
                 Image Quality UP: Crtl+U
                 Image Quality Down: Crtl+Z\n\n
                 Elmo User Interface - Version """+version
@@ -345,7 +343,7 @@ def events():
                 display_menue = not display_menue
             #Aktuelles Bild als jpg-Datei speichern
             if (event.key == pygame.K_s and pygame.K_LCTRL) or (event.key == pygame.K_s and pygame.K_RCTRL):
-                save_cam(cam)
+                save_image_to_file(cam)
             #exit help with escape
             if event.key == pygame.K_ESCAPE and display_help == True:
                 display_help = False
@@ -512,7 +510,7 @@ while ui_running:
             pygame.display.set_caption(str("Elmo UI v" + version)) #set msg of the window
             image_size = image.get_size()
             
-        if rotate: # Bild 180° rotieren falls Flag durch Rotate Button gesetzt
+        if (rotate and (not error_no_image)): # neues Bild 180° rotieren falls Flag durch Rotate Button gesetzt
             logging.debug('rotate image...')
             image = pygame.transform.flip(image, True, True)
         
@@ -561,7 +559,7 @@ while ui_running:
         if error_no_elmo:
             error_string = error_string + "\n\n    No Camera found    "
         if error_no_image:
-            error_string = error_string + "\n\n    Can't get a Image "
+            error_string = error_string + "\n\n    Can't get an Image "
         #create rectangle
         textRect = pygame.Rect((0, 0, screen_res[0], screen_res[1]))
         #set rectangle position to middle of the screen
