@@ -5,7 +5,7 @@ Frage: Freigabe der USB-Schnittstelle am Ende bei disconnect() nötig?
 Modul elmo basiert auf "freeElmo", siehe nv1t.github.io/blog/freeing-elmo
 bzw. github.com/nv1t/freeElmo/blob/master/elmo.py
 
-S. Mack, 4.5.21
+S. Mack, 6.5.21
 """
 
 
@@ -149,14 +149,14 @@ class Elmo:
         try:
             a = self.msg['picture']
             a[12] = self.compression # jpeg compression ratio
-            self.device.write(0x04,  self.msg['picture'], 0) # Anforderung Bild, wieso Timeout 0?
+            self.device.write(0x04,  self.msg['picture']) # Anforderung Bild, ursprünglich Timeout 0
         except:
-            logging.warning('elmoCam: get_image() > device.write() exeption...')
+            logging.warning('elmoCam: get_image() > device.write() exeption...') # exception unabhängig vom Timeout
         try:
-            ret = self.device.read(0x83, 32) # Antwort auf Anforderung Bild mit # Bilddaten-Bytes in Byte 4 und 5
+            ret = self.device.read(0x83, 32, 100) # Antwort auf Anforderung Bild mit # Bilddaten-Bytes in Byte 4 und 5, urspränglich kein Timeout
             logging.debug('elmoCam: get_image() poll total {} Bytes to read.'.format(256*ret[5]+ret[4]))
         except:
-            logging.debug('elmoCam: get_image() poll > device.read() exception...')
+            logging.warning('elmoCam: get_image() poll > device.read() exception...') # exception sporadisch bei Timeout <100
             self.clear_device()
             return False
         whole_img_bytes = [] # Liste für Bytes des gesammten Bildes

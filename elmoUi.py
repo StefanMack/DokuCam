@@ -17,7 +17,7 @@ Getestet nur unter Ubuntu Linux 20.04 LTS.
 Unter Windoof muss mindestens die Pfadangabe in der Funktion save_to_file() 
 geänder werden.´
 
-S. Mack, 4.5.21
+S. Mack, 6.5.21
 
 """
 
@@ -30,7 +30,7 @@ import elmoCam
 
 # Nachfolgende Zeile für Debugmeldungen ausschalten (level=0 bedeutet alle Meldungen)
 # DEBUG 10, INFO 20, WARNING 30
-#logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.WARNING)
 #logging.basicConfig(filename='logDatei.log', level=logging.WARNING)
 
 pygame.init() #init pygame
@@ -53,7 +53,7 @@ DGRAY = (48, 48, 48)
 ###############
 # global vars #
 ###############
-version = "1.0"
+version = "1.1"
 disp_info = pygame.display.Info()
 rotate = False
 rotate_90 = 0
@@ -458,27 +458,46 @@ class Button:
 #################
 # main-function #
 #################
+#################################
+# initialisation of ELMO device #
+#################################
+if error_no_elmo == True:
+    try:    
+        logging.debug('# of displays: {}'.format(pygame.display.get_num_displays()))
+        logging.debug('display size:{}x{}'.format(disp_info.current_w,disp_info.current_h))
+        cam = elmoCam.Elmo()
+        cam_connect = cam.connect() # bei Testbetrieb auskommentieren
+        if cam_connect == -1:
+            error_no_elmo = True
+        else:
+            error_no_elmo = False
+        #error_no_elmo = False # Testbetrieb
+    except:
+        logging.warning('No Elmo camera found...')
+        error_no_elmo = True
+
+
 while ui_running:
     logging.debug('new frame...')
-    #################################
-    # initialisation of ELMO device #
-    #################################
-    if error_no_elmo == True:
-        try:    
-            logging.debug('# of displays: {}'.format(pygame.display.get_num_displays()))
-            logging.debug('display size:{}x{}'.format(disp_info.current_w,disp_info.current_h))
-            cam = elmoCam.Elmo()
-            cam_connect = cam.connect() # bei Testbetrieb auskommentieren
-            if cam_connect == -1:
-                error_no_elmo = True
-            else:
-                error_no_elmo = False
-            #error_no_elmo = False # Testbetrieb
-        except:
-            logging.warning('No Elmo camera found...')
-            error_no_elmo = True
+#    #################################
+#    # initialisation of ELMO device #
+#    #################################
+#    if error_no_elmo == True:
+#        try:    
+#            logging.debug('# of displays: {}'.format(pygame.display.get_num_displays()))
+#            logging.debug('display size:{}x{}'.format(disp_info.current_w,disp_info.current_h))
+#            cam = elmoCam.Elmo()
+#            cam_connect = cam.connect() # bei Testbetrieb auskommentieren
+#            if cam_connect == -1:
+#                error_no_elmo = True
+#            else:
+#                error_no_elmo = False
+#            #error_no_elmo = False # Testbetrieb
+#        except:
+#            logging.warning('No Elmo camera found...')
+#            error_no_elmo = True
               
-    events() # check for pygame events (evtl. wegen pyGame 2 noch ändern)
+    events() # check for pygame events
         
     try: #clear background
         logging.debug('clear background...')
@@ -492,7 +511,7 @@ while ui_running:
     try: # Bild via USB einlesen und umformen
         logging.debug('get new image...')
         data = cam.get_image() # Bilddaten als Byte Array einlesen
-        error_no_elmo = False
+        #error_no_elmo = False
         stream = BytesIO(data) # Byte-Stream aus data erzeugen - wie eine Datei einlesbar
         error_no_image = False
         image_new = pygame.image.load(stream) # neues Bild in pyGame einlesen                                      
@@ -527,20 +546,20 @@ while ui_running:
             buttons = draw_menue(screen, screen.get_size(), buttons, error_no_elmo, basic_font, DGRAY, LGRAY)
         
         if error_no_image: # display error massage when no image is delivered
-            logging.warning('error_no_image...')
-            string = "\n  Can't get a new image.  "
+            logging.debug('error_no_image...')
+            string = "\n  No image from camera.  "
             #calculating the box size
-            temp_font_size = int((screen.get_size()[0]/12)/2)
+            temp_font_size = int((screen.get_size()[0]/6)/2)
             temp_width = temp_font_size * 3
             temp_height = temp_font_size * 0.75
-            #print the boy on the screen
+            #print the box on the screen
             fits=False
             rendered_text = False
             while not fits:
                 try:
                     textRect = pygame.Rect((0, 0, temp_width, temp_height))
                     textRect.centerx = screen.get_rect().centerx
-                    rendered_text = render_textrect(string, pygame.font.SysFont(basic_font, temp_font_size-1), textRect, LGRAY, DGRAY, 0)
+                    rendered_text = render_textrect(string, pygame.font.SysFont(basic_font, temp_font_size-1), textRect, RED, DGRAY, 0)
                     fits = True
                 except:
                     temp_font_size = temp_font_size - 1
@@ -553,21 +572,14 @@ while ui_running:
         if screen_res == None:
             screen_res = [480, 320]
         screen = pygame.display.set_mode(screen_res,RESIZABLE)
-        pygame.display.set_caption(str("ERROR!!! - elmoUi Version " + version)) #set msg of the window
-        #define string to display
-        error_string = ""
-        if error_no_elmo:
-            error_string = error_string + "\n\n    No Camera found    "
-        if error_no_image:
-            error_string = error_string + "\n\n    Can't get an Image "
+        pygame.display.set_caption(str("Elmo UI v" + version)) #set msg of the window
         #create rectangle
         textRect = pygame.Rect((0, 0, screen_res[0], screen_res[1]))
         #set rectangle position to middle of the screen
         textRect.centerx = screen.get_rect().centerx
-        textRect.centery = screen.get_rect().centery  
-        
+        textRect.centery = screen.get_rect().centery       
         #render the text for the rectangle
-        rendered_text = render_textrect(error_string, pygame.font.SysFont("", 24), textRect, LGRAY, DGRAY, 0)
+        rendered_text = render_textrect("\n\n    No Camera found    ", pygame.font.SysFont("", 24), textRect, LGRAY, DGRAY, 0)
         if rendered_text:
             logging.debug('rendered text...')
             screen.blit(rendered_text, textRect)
